@@ -6,6 +6,13 @@ DEFAULT_QUOTA = 25000000  # 25 GB
 DEFAULT_USED_QUOTA = 5000000  # 5 GB
 CHANGED_QUOTA = 30000000  # 30 GB
 
+# 测试用的 WAF cookies（不含 session）
+WAF_ONLY_COOKIES = [
+	{'name': 'acw_tc', 'value': 'mock_acw_tc'},
+	{'name': 'acw_sc__v2', 'value': 'mock_acw_sc'},
+	{'name': 'cdn_sec_tc', 'value': 'mock_cdn_sec'},
+]
+
 
 class MockPlaywright:
 	"""Mock Playwright 依赖"""
@@ -24,12 +31,16 @@ class MockPlaywright:
 				{'name': 'acw_tc', 'value': 'mock_acw_tc'},
 				{'name': 'acw_sc__v2', 'value': 'mock_acw_sc'},
 				{'name': 'cdn_sec_tc', 'value': 'mock_cdn_sec'},
+				{'name': 'session', 'value': 'mock_session'},
 			]
 
 		mock_page = MagicMock()
 		mock_page.goto = AsyncMock()
 		mock_page.wait_for_function = AsyncMock()
 		mock_page.wait_for_timeout = AsyncMock()
+		mock_page.fill = AsyncMock()
+		mock_page.click = AsyncMock()
+		mock_page.wait_for_load_state = AsyncMock()
 
 		mock_context = MagicMock()
 		mock_context.cookies = AsyncMock(return_value=cookies)
