@@ -92,11 +92,6 @@ class CheckinService:
 		username = account_info.get('username', '')
 		password = account_info.get('password', '')
 
-		# 未找到 API 用户标识符
-		if not api_user:
-			logger.error('未找到 API 用户标识符', account_name)
-			return False, None
-
 		# 解析用户 cookies（当提供了 username/password 时，cookies 可以为空）
 		user_cookies = self._parse_cookies(cookies_data)
 		if not user_cookies and not (username and password):
@@ -115,6 +110,14 @@ class CheckinService:
 				# 合并 WAF cookies 和用户 cookies
 				all_cookies = {**waf_cookies, **user_cookies}
 				client.cookies.update(all_cookies)
+
+				# 如果未提供 api_user，尝试从用户信息 API 自动检测
+				if not api_user:
+					api_user = await self._detect_api_user(client)
+					if not api_user:
+						logger.error('无法获取 API 用户标识符，请在配置中手动指定 api_user', account_name)
+						return False, None
+					logger.info(f'自动获取到 API 用户标识符：{api_user}', account_name)
 
 				headers = {
 					'User-Agent': ' '.join(self.Config.Browser.USER_AGENT_PARTS),
@@ -319,6 +322,37 @@ class CheckinService:
 					await browser.close()
 				except Exception:
 					pass
+
+	async def _detect_api_user(self, client) -> str | None:
+		"""
+		尝试从用户信息 API 自动检测 API 用户标识符
+
+		在用户未提供 api_user 时，通过调用用户信息接口获取用户 ID。
+
+		Args:
+		    client: httpx 客户端（已设置 cookies）
+
+		Returns:
+		    str | None: 用户 ID 字符串，失败返回 None
+		"""
+		try:
+			response = await client.get(
+				url=self.Config.URLs.USER_INFO,
+				headers={
+					'User-Agent': ' '.join(self.Config.Browser.USER_AGENT_PARTS),
+					'Accept': 'application/json, text/plain, */*',
+				},
+				timeout=30,
+			)
+			if response.status_code == 200:
+				data = response.json()
+				if data.get('success'):
+					user_id = data.get('data', {}).get('id')
+					if user_id is not None:
+						return str(user_id)
+		except Exception:
+			pass
+		return None
 
 	async def _perform_browser_login(
 		self,

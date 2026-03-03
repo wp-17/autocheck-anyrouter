@@ -144,6 +144,7 @@ class MockHttpClient:
 			json_data={
 				'success': True,
 				'data': {
+					'id': 1,
 					'quota': DEFAULT_QUOTA,
 					'used_quota': DEFAULT_USED_QUOTA,
 				},
@@ -197,6 +198,7 @@ class HttpRequestTracker:
 			json_data={
 				'success': True,
 				'data': {
+					'id': 1,
 					'quota': DEFAULT_QUOTA,
 					'used_quota': DEFAULT_USED_QUOTA,
 				},

@@ -295,16 +295,16 @@ class Application:
 				logger.error(f'账号 {i + 1} 配置格式不正确')
 				return []
 
-			# 缺少 api_user 字段
-			if 'api_user' not in account:
-				logger.error(f'账号 {i + 1} 缺少必需字段 (api_user)')
-				return []
-
 			# 必须提供 cookies 或 username+password
 			has_cookies = 'cookies' in account
 			has_credentials = 'username' in account and 'password' in account
 			if not has_cookies and not has_credentials:
 				logger.error(f'账号 {i + 1} 缺少必需字段：需要提供 cookies 或 username+password')
+				return []
+
+			# 使用 cookies 时 api_user 必须提供；使用 username+password 时可选（会自动检测）
+			if 'api_user' not in account and has_cookies:
+				logger.error(f'账号 {i + 1} 缺少必需字段 (api_user)')
 				return []
 
 			# name 字段为空字符串
