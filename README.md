@@ -38,7 +38,7 @@
 2. **获取账号信息**
   - 访问 [AnyRouter](https://anyrouter.top/register?aff=sL91) 并登录
   - 打开开发者工具 (F12)
-  - 获取 `session` cookie 和 `New-Api-User` 请求头值
+  - 获取 `New-Api-User` 请求头值（即 `api_user`）
 
 3. **配置环境变量**
   - 进入 fork 后仓库的 `Settings` > `Environments` > `Environment secrets`
@@ -103,10 +103,32 @@ jobs:
 ### 账号配置
 
 - `name`（可选）：账号显示名称
-- `cookies`：登录后的 session cookie
-- `api_user`：API 用户标识
+- `api_user`（必填）：API 用户标识
 
-配置格式：
+认证方式（二选一）：
+
+**方式一：用户名密码自动登录（推荐）**
+
+脚本每次运行时会自动登录获取最新 session，无需手动更新：
+- `username`：登录用户名
+- `password`：登录密码
+
+```json5
+[
+  {
+    "name": "账号1",
+    "username": "your_username",
+    "password": "your_password",
+    "api_user": "12345"
+  }
+]
+```
+
+**方式二：手动提供 cookies**
+
+提供登录后的 session cookie，约 1 个月后过期需手动更新（遇到 401 错误时请重新获取）：
+- `cookies`：登录后的 session cookie
+
 ```json5
 [
   {
@@ -392,7 +414,7 @@ jobs:
 ## 注意事项
 
 - 部分账号签到失败的时候，Action 整体依然会展示成功，具体的错误将在日志与通知中体现
-- 遇到 401 错误时请重新获取 cookies，理论 1 个月失效，详见 [anyrouter-check-in #6](https://github.com/millylee/anyrouter-check-in/issues/6)
+- 遇到 401 错误时，建议改用 `username`+`password` 方式配置账号以自动登录获取最新 session；若使用 cookies 方式，请重新获取 session cookie（理论 1 个月失效，详见 [anyrouter-check-in #6](https://github.com/millylee/anyrouter-check-in/issues/6)）
 
 ## 贡献指南
 

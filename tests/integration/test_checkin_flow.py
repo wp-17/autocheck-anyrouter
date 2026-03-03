@@ -6,7 +6,7 @@ import pytest
 
 from application import Application
 from tests.conftest import assert_file_content_contains
-from tests.fixtures.data import STANDARD_ACCOUNTS
+from tests.fixtures.data import CREDENTIAL_ACCOUNTS, STANDARD_ACCOUNTS
 from tests.fixtures.mock_dependencies import (
 	CHANGED_QUOTA,
 	DEFAULT_USED_QUOTA,
@@ -14,6 +14,7 @@ from tests.fixtures.mock_dependencies import (
 	MockHttpClient,
 	MockPlaywright,
 	MockSMTP,
+	WAF_ONLY_COOKIES,
 )
 
 
@@ -201,3 +202,41 @@ class TestCheckinFlow:
 
 		assert exc_info.value.code == 1, '全部失败退出码应该是 1'
 		assert mock_push.await_count == 1, '有失败账号应该发送通知'
+
+	@pytest.mark.asyncio
+	async def test_credential_login_flow(self, accounts_env, tmp_path):
+		"""测试使用 username/password 凭据自动登录的签到流程"""
+		accounts_env(CREDENTIAL_ACCOUNTS)
+
+		app = Application()
+		app.balance_manager.balance_hash_file = tmp_path / 'hash_credential.txt'
+
+		with patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': '/dev/null'}):
+			with ExitStack() as stack:
+				MockPlaywright.setup_success(stack)
+				tracker = HttpRequestTracker()
+				MockHttpClient.setup(stack, tracker.get_handler, tracker.post_handler)
+
+				with pytest.raises(SystemExit) as exc_info:
+					await app.run()
+
+		assert exc_info.value.code == 0, '凭据登录流程签到应该成功'
+		assert tracker.post_count == 1, '应该尝试签到 1 个账号'
+
+	@pytest.mark.asyncio
+	async def test_credential_login_missing_session_cookie(self, accounts_env, tmp_path):
+		"""测试凭据登录后未获取到 session cookie 的情况"""
+		accounts_env(CREDENTIAL_ACCOUNTS)
+
+		app = Application()
+		app.balance_manager.balance_hash_file = tmp_path / 'hash_no_session.txt'
+
+		with patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': '/dev/null'}):
+			with ExitStack() as stack:
+				MockPlaywright.setup_success(stack, cookies=WAF_ONLY_COOKIES)
+				MockHttpClient.setup(stack, MockHttpClient.get_success_handler, MockHttpClient.post_success_handler)
+
+				with pytest.raises(SystemExit) as exc_info:
+					await app.run()
+
+		assert exc_info.value.code == 1, '登录后无 session cookie 应该失败'

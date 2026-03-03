@@ -295,9 +295,16 @@ class Application:
 				logger.error(f'账号 {i + 1} 配置格式不正确')
 				return []
 
-			# 缺少必需字段
-			if 'cookies' not in account or 'api_user' not in account:
-				logger.error(f'账号 {i + 1} 缺少必需字段 (cookies, api_user)')
+			# 缺少 api_user 字段
+			if 'api_user' not in account:
+				logger.error(f'账号 {i + 1} 缺少必需字段 (api_user)')
+				return []
+
+			# 必须提供 cookies 或 username+password
+			has_cookies = 'cookies' in account
+			has_credentials = 'username' in account and 'password' in account
+			if not has_cookies and not has_credentials:
+				logger.error(f'账号 {i + 1} 缺少必需字段：需要提供 cookies 或 username+password')
 				return []
 
 			# name 字段为空字符串
@@ -320,17 +327,28 @@ class Application:
 			'3. 点击 "New repository secret"',
 			f'4. 创建名为 {CheckinService.Config.Env.ACCOUNTS_KEY} 的 secret',
 			'',
-			f'📝 {CheckinService.Config.Env.ACCOUNTS_KEY} 格式示例：',
+			f'📝 {CheckinService.Config.Env.ACCOUNTS_KEY} 格式示例（方式一：用户名密码自动登录）：',
 			'[',
 			'  {',
 			'    "name": "账号1",',
-			'    "cookies": "cookie1=value1; cookie2=value2",',
+			'    "username": "your_username",',
+			'    "password": "your_password",',
+			'    "api_user": "your_api_user"',
+			'  }',
+			']',
+			'',
+			f'📝 {CheckinService.Config.Env.ACCOUNTS_KEY} 格式示例（方式二：手动提供 cookies）：',
+			'[',
+			'  {',
+			'    "name": "账号1",',
+			'    "cookies": "session=value1",',
 			'    "api_user": "your_api_user"',
 			'  }',
 			']',
 			'',
 			'💡 提示：',
 			'- name 字段为账号显示名称（可选）',
-			'- cookies 为登录后的 cookie 字符串',
+			'- 方式一：提供 username 和 password，脚本将自动登录获取最新 session（推荐）',
+			'- 方式二：提供 cookies（含 session），约 1 个月后过期需手动更新',
 			'- api_user 为 API 用户标识',
 		])  # fmt: skip

@@ -19,6 +19,16 @@ STANDARD_ACCOUNTS = [
 	},
 ]
 
+# 使用 username/password 的测试账号
+CREDENTIAL_ACCOUNTS = [
+	{
+		'name': '凭据账号 A',
+		'username': 'test_user_a',
+		'password': 'test_pass_a',
+		'api_user': 'user_a',
+	},
+]
+
 # 单个测试账号
 SINGLE_ACCOUNT = [
 	{

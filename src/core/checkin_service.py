@@ -59,11 +59,13 @@ class CheckinService:
 				'--disable-features=VizDisplayCompositor',
 				'--no-sandbox',
 			]
+			LOGIN_TIMEOUT = 15000  # 登录等待超时时间（毫秒）
 
 		class WAF:
 			"""WAF 配置"""
 
 			COOKIE_NAMES = ['acw_tc', 'cdn_sec_tc', 'acw_sc__v2']
+			SESSION_COOKIE_NAME = 'session'
 
 	async def check_in_account(
 		self,
@@ -87,20 +89,22 @@ class CheckinService:
 		# 解析账号配置
 		cookies_data = account_info.get('cookies', {})
 		api_user = account_info.get('api_user', '')
+		username = account_info.get('username', '')
+		password = account_info.get('password', '')
 
 		# 未找到 API 用户标识符
 		if not api_user:
 			logger.error('未找到 API 用户标识符', account_name)
 			return False, None
 
-		# 解析用户 cookies
+		# 解析用户 cookies（当提供了 username/password 时，cookies 可以为空）
 		user_cookies = self._parse_cookies(cookies_data)
-		if not user_cookies:
-			logger.error('配置格式无效', account_name)
+		if not user_cookies and not (username and password):
+			logger.error('配置格式无效：需要提供 cookies 或 username+password', account_name)
 			return False, None
 
-		# 步骤1：获取 WAF cookies
-		waf_cookies = await self._get_waf_cookies_with_playwright(account_name)
+		# 步骤1：获取 WAF cookies（如果提供了凭据，同时执行登录获取 session cookie）
+		waf_cookies = await self._get_waf_cookies_with_playwright(account_name, username, password)
 		if not waf_cookies:
 			logger.error('无法获取 WAF cookies', account_name)
 			return False, None
@@ -197,15 +201,24 @@ class CheckinService:
 				)
 				return False, None
 
-	async def _get_waf_cookies_with_playwright(self, account_name: str) -> dict[str, str] | None:
+	async def _get_waf_cookies_with_playwright(
+		self,
+		account_name: str,
+		username: str = '',
+		password: str = '',
+	) -> dict[str, str] | None:
 		"""
 		使用 Playwright 获取 WAF cookies（无痕模式）
 
+		如果提供了 username 和 password，还会执行登录并获取 session cookie。
+
 		Args:
 		    account_name: 账号名称（用于日志）
+		    username: 登录用户名（可选）
+		    password: 登录密码（可选）
 
 		Returns:
-		    dict[str, str] | None: WAF cookies 字典，失败返回 None
+		    dict[str, str] | None: cookies 字典，失败返回 None
 		"""
 		logger.processing('正在启动浏览器获取 WAF cookies...', account_name)
 
@@ -243,6 +256,11 @@ class CheckinService:
 				except Exception:
 					await page.wait_for_timeout(3000)
 
+				# 如果提供了登录凭据，执行实际登录获取 session cookie
+				if username and password:
+					logger.processing('步骤 2: 正在使用凭据执行登录...', account_name)
+					await self._perform_browser_login(page, username, password, account_name)
+
 				cookies = await context.cookies()
 
 				waf_cookies = {}
@@ -261,6 +279,23 @@ class CheckinService:
 					return None
 
 				logger.success('成功获取所有 WAF cookies', account_name)
+
+				# 如果执行了登录，还需要收集 session cookie
+				if username and password:
+					session_value = next(
+						(
+							c.get('value')
+							for c in cookies
+							if c.get('name') == self.Config.WAF.SESSION_COOKIE_NAME and c.get('value')
+						),
+						None,
+					)
+					if not session_value:
+						logger.error('登录后未获取到 session cookie，请确认用户名和密码正确', account_name)
+						return None
+
+					logger.success('成功获取 session cookie', account_name)
+					return {**waf_cookies, self.Config.WAF.SESSION_COOKIE_NAME: session_value}
 
 				return waf_cookies
 
@@ -284,6 +319,30 @@ class CheckinService:
 					await browser.close()
 				except Exception:
 					pass
+
+	async def _perform_browser_login(
+		self,
+		page,
+		username: str,
+		password: str,
+		account_name: str,
+	) -> None:
+		"""
+		使用 Playwright 在登录页面填写凭据并提交
+
+		Args:
+		    page: Playwright 页面对象
+		    username: 登录用户名
+		    password: 登录密码
+		    account_name: 账号名称（用于日志）
+		"""
+		try:
+			await page.fill('input[name="username"]', username)
+			await page.fill('input[type="password"]', password)
+			await page.click('button[type="submit"]')
+			await page.wait_for_load_state('networkidle', timeout=self.Config.Browser.LOGIN_TIMEOUT)
+		except Exception as e:
+			raise RuntimeError(f'登录操作失败：{e}') from e
 
 	async def _get_user_info(
 		self,
