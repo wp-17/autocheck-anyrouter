@@ -29,6 +29,15 @@ CREDENTIAL_ACCOUNTS = [
 	},
 ]
 
+# 使用 username/password 但不提供 api_user 的测试账号（用于测试自动检测）
+CREDENTIAL_ACCOUNTS_NO_API_USER = [
+	{
+		'name': '凭据账号 B',
+		'username': 'test_user_b',
+		'password': 'test_pass_b',
+	},
+]
+
 # 单个测试账号
 SINGLE_ACCOUNT = [
 	{

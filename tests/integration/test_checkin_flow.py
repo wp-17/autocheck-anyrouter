@@ -6,7 +6,7 @@ import pytest
 
 from application import Application
 from tests.conftest import assert_file_content_contains
-from tests.fixtures.data import CREDENTIAL_ACCOUNTS, STANDARD_ACCOUNTS
+from tests.fixtures.data import CREDENTIAL_ACCOUNTS, CREDENTIAL_ACCOUNTS_NO_API_USER, STANDARD_ACCOUNTS
 from tests.fixtures.mock_dependencies import (
 	CHANGED_QUOTA,
 	DEFAULT_USED_QUOTA,
@@ -240,3 +240,55 @@ class TestCheckinFlow:
 					await app.run()
 
 		assert exc_info.value.code == 1, '登录后无 session cookie 应该失败'
+
+	@pytest.mark.asyncio
+	async def test_credential_login_auto_detect_api_user(self, accounts_env, tmp_path):
+		"""测试使用 username/password 且不提供 api_user 时自动检测的签到流程"""
+		accounts_env(CREDENTIAL_ACCOUNTS_NO_API_USER)
+
+		app = Application()
+		app.balance_manager.balance_hash_file = tmp_path / 'hash_auto_detect.txt'
+
+		with patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': '/dev/null'}):
+			with ExitStack() as stack:
+				MockPlaywright.setup_success(stack)
+				tracker = HttpRequestTracker()
+				MockHttpClient.setup(stack, tracker.get_handler, tracker.post_handler)
+
+				with pytest.raises(SystemExit) as exc_info:
+					await app.run()
+
+		assert exc_info.value.code == 0, '自动检测 api_user 时签到应该成功'
+		assert tracker.post_count == 1, '应该尝试签到 1 个账号'
+
+	@pytest.mark.asyncio
+	async def test_credential_login_auto_detect_api_user_fails(self, accounts_env, tmp_path):
+		"""测试 api_user 自动检测失败时的处理"""
+		accounts_env(CREDENTIAL_ACCOUNTS_NO_API_USER)
+
+		app = Application()
+		app.balance_manager.balance_hash_file = tmp_path / 'hash_auto_detect_fail.txt'
+
+		with patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': '/dev/null'}):
+			with ExitStack() as stack:
+				MockPlaywright.setup_success(stack)
+
+				async def get_handler_without_user_id(*args, **kwargs):
+					return MockHttpClient.build_response(
+						status=200,
+						json_data={
+							'success': True,
+							'data': {
+								'quota': 25000000,
+								'used_quota': 5000000,
+								# No 'id' field - auto-detection should fail
+							},
+						},
+					)
+
+				MockHttpClient.setup(stack, get_handler_without_user_id, MockHttpClient.post_success_handler)
+
+				with pytest.raises(SystemExit) as exc_info:
+					await app.run()
+
+		assert exc_info.value.code == 1, '无法自动检测 api_user 时应该失败'
