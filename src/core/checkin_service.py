@@ -373,7 +373,7 @@ class CheckinService:
 		try:
 			await page.fill('input[name="username"]', username)
 			await page.fill('input[type="password"]', password)
-			await page.click('button[type="submit"]')
+			await page.locator('button[type="submit"]').evaluate('el => el.click()')
 			await page.wait_for_load_state('networkidle', timeout=self.Config.Browser.LOGIN_TIMEOUT)
 		except Exception as e:
 			raise RuntimeError(f'登录操作失败：{e}') from e

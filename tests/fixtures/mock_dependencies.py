@@ -34,12 +34,15 @@ class MockPlaywright:
 				{'name': 'session', 'value': 'mock_session'},
 			]
 
+		mock_locator = MagicMock()
+		mock_locator.evaluate = AsyncMock()
+
 		mock_page = MagicMock()
 		mock_page.goto = AsyncMock()
 		mock_page.wait_for_function = AsyncMock()
 		mock_page.wait_for_timeout = AsyncMock()
 		mock_page.fill = AsyncMock()
-		mock_page.click = AsyncMock()
+		mock_page.locator = MagicMock(return_value=mock_locator)
 		mock_page.wait_for_load_state = AsyncMock()
 
 		mock_context = MagicMock()
